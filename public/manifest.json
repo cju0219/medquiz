@@ -1,0 +1,13 @@
+{
+  "name": "MedQuiz — 의대생 연습문제 생성기",
+  "short_name": "MedQuiz",
+  "description": "기출 문제 PDF로 AI 연습문제 생성",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F8F7F4",
+  "theme_color": "#185FA5",
+  "icons": [
+    { "src": "https://placehold.co/192x192/185FA5/ffffff?text=MQ", "sizes": "192x192", "type": "image/png" },
+    { "src": "https://placehold.co/512x512/185FA5/ffffff?text=MQ", "sizes": "512x512", "type": "image/png" }
+  ]
+}

@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MedQuiz — 의대생 연습문제 생성기</title>
+  <meta name="description" content="기출 문제 PDF를 업로드하면 AI가 유사한 연습문제를 자동으로 생성합니다" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&family=Pretendard:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --blue-50: #E6F1FB; --blue-200: #85B7EB; --blue-600: #185FA5; --blue-800: #0C447C;
+      --teal-50: #E1F5EE; --teal-600: #0F6E56; --teal-800: #085041;
+      --red-50: #FCEBEB; --red-600: #A32D2D;
+      --amber-50: #FAEEDA; --amber-600: #854F0B;
+      --gray-50: #F8F7F4; --gray-100: #EEECEA; --gray-200: #D3D1C7;
+      --gray-400: #888780; --gray-700: #444441; --gray-900: #1C1C1A;
+      --bg: #F8F7F4; --surface: #FFFFFF;
+      --text: #1C1C1A; --text-muted: #6B6A66;
+      --border: rgba(0,0,0,0.09); --border-md: rgba(0,0,0,0.15);
+      --radius-sm: 8px; --radius-md: 12px; --radius-lg: 16px;
+      --shadow: 0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.05);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Pretendard', -apple-system, sans-serif;
+      background: var(--bg); color: var(--text);
+      min-height: 100vh; line-height: 1.6;
+    }
+
+    /* NAV */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(248,247,244,0.88);
+      backdrop-filter: blur(12px);
+      border-bottom: 0.5px solid var(--border);
+      padding: 0 1.5rem;
+      display: flex; align-items: center; justify-content: space-between; height: 56px;
+    }
+    .nav-logo { font-family: 'Noto Serif KR', serif; font-size: 18px; font-weight: 600; color: var(--blue-600); letter-spacing: -0.3px; }
+    .nav-logo span { color: var(--gray-400); font-weight: 400; font-size: 13px; margin-left: 8px; }
+
+    /* MAIN LAYOUT */
+    main { max-width: 680px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+
+    /* TABS */
+    .tabs { display: flex; background: var(--gray-100); border-radius: var(--radius-md); padding: 4px; gap: 2px; margin-bottom: 2rem; }
+    .tab { flex: 1; padding: 9px; font-size: 13px; font-weight: 500; cursor: pointer; background: transparent; border: none; color: var(--text-muted); border-radius: 9px; transition: all 0.18s; }
+    .tab.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+    .tab:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* SECTION */
+    .section { display: none; animation: fadeIn 0.2s ease; }
+    .section.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+    /* CARD */
+    .card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; box-shadow: var(--shadow); }
+
+    /* UPLOAD */
+    .upload-zone {
+      border: 1.5px dashed var(--gray-200); border-radius: var(--radius-lg);
+      padding: 2.5rem 1rem; text-align: center; cursor: pointer;
+      transition: all 0.18s; background: var(--surface);
+    }
+    .upload-zone:hover { border-color: var(--blue-200); background: var(--blue-50); }
+    .upload-zone.has-file { border-color: #5DCAA5; border-style: solid; background: var(--teal-50); }
+    .upload-icon { font-size: 36px; margin-bottom: 12px; display: block; }
+    .upload-zone p { font-size: 14px; color: var(--text-muted); }
+    .upload-zone strong { color: var(--text); font-weight: 600; display: block; margin-bottom: 4px; }
+    input[type=file] { display: none; }
+
+    .file-tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--teal-50); color: var(--teal-600);
+      font-size: 12px; font-weight: 500; padding: 5px 12px;
+      border-radius: 99px; margin-top: 12px; border: 0.5px solid #9FE1CB;
+    }
+
+    /* FORM */
+    .form-group { margin-bottom: 1.25rem; }
+    .form-label { display: block; font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 8px; }
+    .form-label span { color: var(--text-muted); font-weight: 400; margin-left: 4px; }
+
+    select {
+      width: 100%; padding: 10px 14px; font-size: 14px;
+      border: 0.5px solid var(--border-md); border-radius: var(--radius-sm);
+      background: var(--surface); color: var(--text);
+      font-family: 'Pretendard', sans-serif; cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23888780' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 14px center;
+    }
+    select:focus { outline: none; border-color: var(--blue-200); box-shadow: 0 0 0 3px rgba(55,138,221,0.1); }
+
+    .type-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .type-card {
+      padding: 12px; border: 0.5px solid var(--border-md); border-radius: var(--radius-sm);
+      cursor: pointer; transition: all 0.15s; background: var(--surface);
+    }
+    .type-card:hover { border-color: var(--blue-200); }
+    .type-card.sel { border-color: var(--blue-600); background: var(--blue-50); border-width: 1.5px; }
+    .type-card .tname { font-size: 13px; font-weight: 500; color: var(--text); }
+    .type-card .tdesc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    .slider-row { display: flex; align-items: center; gap: 12px; }
+    input[type=range] { flex: 1; }
+    .slider-val { font-size: 14px; font-weight: 600; color: var(--blue-600); min-width: 36px; text-align: right; }
+
+    /* BUTTON */
+    .btn-primary {
+      width: 100%; padding: 13px; background: var(--blue-600); color: #fff;
+      border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 600;
+      cursor: pointer; transition: all 0.15s; margin-top: 0.5rem;
+      font-family: 'Pretendard', sans-serif; letter-spacing: 0.01em;
+    }
+    .btn-primary:hover:not(:disabled) { background: var(--blue-800); transform: translateY(-1px); }
+    .btn-primary:disabled { background: var(--gray-200); color: var(--gray-400); cursor: not-allowed; transform: none; }
+
+    .btn-ghost {
+      padding: 9px 18px; background: transparent; border: 0.5px solid var(--border-md);
+      border-radius: var(--radius-sm); font-size: 13px; cursor: pointer; color: var(--text-muted);
+      transition: all 0.15s; font-family: 'Pretendard', sans-serif;
+    }
+    .btn-ghost:hover { background: var(--gray-100); border-color: var(--border-md); }
+
+    .btn-confirm {
+      padding: 9px 20px; background: var(--blue-600); color: #fff;
+      border: none; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: all 0.15s; font-family: 'Pretendard', sans-serif;
+    }
+    .btn-confirm:hover { background: var(--blue-800); }
+
+    .btn-next {
+      padding: 9px 20px; background: var(--teal-600); color: #fff;
+      border: none; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: all 0.15s; display: none; font-family: 'Pretendard', sans-serif;
+    }
+    .btn-next:hover { background: var(--teal-800); }
+
+    /* LOADING */
+    .loading { padding: 3rem 1rem; text-align: center; }
+    .spinner {
+      width: 36px; height: 36px; border: 2.5px solid var(--gray-200);
+      border-top-color: var(--blue-600); border-radius: 50%;
+      animation: spin 0.75s linear infinite; margin: 0 auto 1.25rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-title { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
+    .loading-sub { font-size: 13px; color: var(--text-muted); }
+
+    /* QUIZ */
+    .progress-wrap { height: 3px; background: var(--gray-100); border-radius: 99px; margin-bottom: 1.5rem; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--blue-600); border-radius: 99px; transition: width 0.4s ease; }
+
+    .quiz-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .quiz-num { font-size: 13px; color: var(--text-muted); }
+    .badge { font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 99px; }
+    .badge-mcq { background: var(--blue-50); color: var(--blue-600); }
+    .badge-ox  { background: var(--teal-50); color: var(--teal-600); }
+    .badge-fill { background: var(--amber-50); color: var(--amber-600); }
+
+    .q-text { font-size: 15px; font-weight: 500; line-height: 1.75; margin-bottom: 1.25rem; color: var(--text); }
+
+    .options { display: flex; flex-direction: column; gap: 8px; }
+    .option {
+      display: flex; align-items: flex-start; gap: 12px; padding: 11px 14px;
+      border: 0.5px solid var(--border-md); border-radius: var(--radius-sm);
+      cursor: pointer; transition: all 0.15s; font-size: 14px;
+      background: var(--bg);
+    }
+    .option:hover:not(.locked) { background: var(--blue-50); border-color: var(--blue-200); }
+    .option.picked { border-color: var(--blue-600); background: var(--blue-50); }
+    .option.correct { border-color: #1D9E75; background: var(--teal-50); color: var(--teal-800); }
+    .option.wrong   { border-color: #E24B4A; background: var(--red-50); color: var(--red-600); }
+    .option.locked  { cursor: default; }
+    .opt-key { font-weight: 600; font-size: 12px; min-width: 16px; color: var(--text-muted); }
+    .option.correct .opt-key, .option.wrong .opt-key { color: inherit; }
+
+    .ox-row { display: flex; gap: 12px; }
+    .ox-btn {
+      flex: 1; padding: 20px; font-size: 28px; text-align: center;
+      border: 0.5px solid var(--border-md); border-radius: var(--radius-md);
+      cursor: pointer; background: var(--bg); transition: all 0.15s;
+      font-family: 'Noto Serif KR', serif;
+    }
+    .ox-btn:hover:not(.locked) { background: var(--blue-50); border-color: var(--blue-200); }
+    .ox-btn.picked { border-color: var(--blue-600); background: var(--blue-50); }
+    .ox-btn.correct { border-color: #1D9E75; background: var(--teal-50); }
+    .ox-btn.wrong   { border-color: #E24B4A; background: var(--red-50); }
+
+    .fill-input {
+      width: 100%; padding: 11px 14px; font-size: 15px;
+      border: 0.5px solid var(--border-md); border-radius: var(--radius-sm);
+      background: var(--bg); color: var(--text); font-family: 'Pretendard', sans-serif;
+    }
+    .fill-input:focus { outline: none; border-color: var(--blue-200); box-shadow: 0 0 0 3px rgba(55,138,221,0.1); }
+    .fill-input.correct { border-color: #1D9E75; background: var(--teal-50); }
+    .fill-input.wrong   { border-color: #E24B4A; background: var(--red-50); }
+
+    .answer-reveal { font-size: 13px; color: var(--teal-600); margin-top: 8px; font-weight: 500; }
+
+    .explanation {
+      border-left: 3px solid var(--blue-200); padding: 12px 16px;
+      margin-top: 1rem; background: var(--blue-50); border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      font-size: 13px; line-height: 1.7; color: var(--text); display: none;
+    }
+    .explanation.show { display: block; }
+    .explanation strong { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--blue-600); margin-bottom: 6px; }
+
+    .nav-row { display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; }
+
+    /* RESULT */
+    .result-hero { text-align: center; padding: 2rem 1rem; }
+    .result-score { font-size: 56px; font-weight: 600; font-family: 'Noto Serif KR', serif; }
+    .result-grade { font-size: 16px; color: var(--text-muted); margin-top: 4px; }
+    .result-bar-wrap { height: 6px; background: var(--gray-100); border-radius: 99px; margin: 1.5rem 0; overflow: hidden; }
+    .result-bar { height: 100%; background: var(--blue-600); border-radius: 99px; transition: width 1s ease; }
+    .stat-row { display: flex; justify-content: center; gap: 2.5rem; margin-top: 1rem; }
+    .stat-item { text-align: center; }
+    .stat-n { font-size: 22px; font-weight: 600; }
+    .stat-l { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .c-correct { color: #1D9E75; } .c-wrong { color: #E24B4A; }
+
+    .divider { height: 0.5px; background: var(--border); margin: 1.5rem 0; }
+
+    /* FOOTER */
+    footer { text-align: center; padding: 2rem; font-size: 12px; color: var(--text-muted); }
+
+    @media (max-width: 480px) {
+      main { padding: 1.25rem 1rem 3rem; }
+      .type-grid { grid-template-columns: 1fr 1fr; }
+      .result-score { font-size: 44px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">MedQuiz <span>의대생 연습문제 생성기</span></div>
+</nav>
+
+<main>
+  <div class="tabs">
+    <button class="tab active" onclick="goTab('setup')">⚙️ 설정</button>
+    <button class="tab" id="tab-quiz" onclick="goTab('quiz')" disabled>📝 문제풀기</button>
+    <button class="tab" id="tab-result" onclick="goTab('result')" disabled>📊 결과</button>
+  </div>
+
+  <!-- ===== SETUP ===== -->
+  <div id="sec-setup" class="section active">
+
+    <div class="form-group">
+      <label class="form-label">1. 기출 문제 PDF 업로드</label>
+      <div class="upload-zone" id="upload-zone" onclick="document.getElementById('pdf-input').click()">
+        <span class="upload-icon">📄</span>
+        <strong>PDF 파일 선택</strong>
+        <p>클릭하여 기출 문제 파일을 업로드하세요</p>
+        <div id="file-tag" class="file-tag" style="display:none">✓ <span id="file-name-text"></span></div>
+      </div>
+      <input type="file" id="pdf-input" accept=".pdf" onchange="handleFile(this)" />
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">2. 과목 선택</label>
+      <select id="subject" onchange="checkReady()">
+        <option value="">과목을 선택하세요</option>
+        <option value="해부학">해부학 (Anatomy)</option>
+        <option value="생리학">생리학 (Physiology)</option>
+        <option value="병리학">병리학 (Pathology)</option>
+        <option value="약리학">약리학 (Pharmacology)</option>
+        <option value="미생물학">미생물학 (Microbiology)</option>
+        <option value="생화학">생화학 (Biochemistry)</option>
+        <option value="내과학">내과학 (Internal Medicine)</option>
+        <option value="외과학">외과학 (Surgery)</option>
+        <option value="소아과학">소아과학 (Pediatrics)</option>
+        <option value="산부인과학">산부인과학 (OB/GYN)</option>
+        <option value="정신건강의학">정신건강의학 (Psychiatry)</option>
+        <option value="예방의학">예방의학 (Preventive Medicine)</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">3. 문제 유형</label>
+      <div class="type-grid">
+        <div class="type-card sel" data-t="mixed" onclick="pickType(this)">
+          <div class="tname">혼합형 ✨</div>
+          <div class="tdesc">객관식 + OX + 빈칸</div>
+        </div>
+        <div class="type-card" data-t="mcq" onclick="pickType(this)">
+          <div class="tname">객관식 5지선다</div>
+          <div class="tdesc">국가고시 스타일</div>
+        </div>
+        <div class="type-card" data-t="ox" onclick="pickType(this)">
+          <div class="tname">OX 문제</div>
+          <div class="tdesc">개념 빠른 확인</div>
+        </div>
+        <div class="type-card" data-t="fill" onclick="pickType(this)">
+          <div class="tname">빈칸 채우기</div>
+          <div class="tdesc">용어 암기 강화</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">4. 문제 수 <span id="cnt-lbl">5문제</span></label>
+      <div class="slider-row">
+        <span style="font-size:13px;color:var(--text-muted)">3</span>
+        <input type="range" min="3" max="15" value="5" step="1" id="count-range"
+          oninput="document.getElementById('cnt-lbl').textContent=this.value+'문제'" />
+        <span style="font-size:13px;color:var(--text-muted)">15</span>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="gen-btn" disabled onclick="startGenerate()">
+      🎯 연습문제 생성하기
+    </button>
+  </div>
+
+  <!-- ===== QUIZ ===== -->
+  <div id="sec-quiz" class="section">
+    <div class="progress-wrap"><div class="progress-fill" id="prog" style="width:0%"></div></div>
+    <div class="quiz-meta">
+      <span class="quiz-num" id="q-num">문제 1 / 5</span>
+      <span class="badge badge-mcq" id="q-badge">객관식</span>
+    </div>
+    <div class="card" id="q-card">
+      <div class="loading">
+        <div class="spinner"></div>
+        <div class="loading-title">문제 생성 중...</div>
+        <div class="loading-sub">잠시만 기다려주세요</div>
+      </div>
+    </div>
+    <div class="nav-row">
+      <button class="btn-ghost" onclick="goTab('setup')">← 설정</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn-confirm" id="btn-check" onclick="checkAns()" style="display:none">정답 확인</button>
+        <button class="btn-next"    id="btn-next"  onclick="nextQ()">다음 →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== RESULT ===== -->
+  <div id="sec-result" class="section">
+    <div class="card">
+      <div class="result-hero" id="result-hero">
+        <div style="color:var(--text-muted);font-size:13px;margin-bottom:1rem">결과를 불러오는 중...</div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:1rem">
+      <button class="btn-primary" id="retry-btn" onclick="startGenerate()" style="display:none">🔄 같은 설정으로 다시 풀기</button>
+      <button class="btn-ghost" style="width:100%;text-align:center" onclick="goTab('setup')">새 파일 업로드하기</button>
+    </div>
+  </div>
+</main>
+
+<footer>MedQuiz · AI 기반 의대 연습문제 생성기</footer>
+
+<script>
+  let pdf64 = null, quizList = [], cur = 0, answered = false, scores = [], qType = 'mixed', selMCQ = null, selOX = null;
+
+  function goTab(id) {
+    ['setup','quiz','result'].forEach(t => {
+      document.getElementById('sec-'+t).classList.toggle('active', t===id);
+      const tb = document.querySelector(`.tab:nth-child(${['setup','quiz','result'].indexOf(t)+1})`);
+      if (tb) tb.classList.toggle('active', t===id);
+    });
+  }
+
+  function handleFile(inp) {
+    const f = inp.files[0]; if(!f) return;
+    const r = new FileReader();
+    r.onload = e => {
+      pdf64 = e.target.result.split(',')[1];
+      document.getElementById('file-name-text').textContent = f.name;
+      document.getElementById('file-tag').style.display = 'inline-flex';
+      document.getElementById('upload-zone').classList.add('has-file');
+      checkReady();
+    };
+    r.readAsDataURL(f);
+  }
+
+  function pickType(el) {
+    document.querySelectorAll('.type-card').forEach(c => c.classList.remove('sel'));
+    el.classList.add('sel'); qType = el.dataset.t;
+  }
+
+  function checkReady() {
+    const ok = pdf64 && document.getElementById('subject').value;
+    document.getElementById('gen-btn').disabled = !ok;
+  }
+
+  async function startGenerate() {
+    const subject = document.getElementById('subject').value;
+    const count   = parseInt(document.getElementById('count-range').value);
+    const typeMap  = { mixed:'객관식(MCQ), OX문제, 빈칸채우기를 골고루 섞어서', mcq:'모두 5지선다 객관식(MCQ)으로', ox:'모두 OX(참/거짓) 문제로', fill:'모두 빈칸 채우기 문제로' };
+
+    goTab('quiz');
+    document.getElementById('tab-quiz').disabled = false;
+    document.getElementById('q-card').innerHTML = `<div class="loading"><div class="spinner"></div><div class="loading-title">PDF 분석 중...</div><div class="loading-sub">${count}개 연습문제를 만들고 있어요</div></div>`;
+    document.getElementById('btn-check').style.display = 'none';
+    document.getElementById('btn-next').style.display  = 'none';
+
+    const prompt = `당신은 의대 교수입니다. 업로드된 PDF의 기출 문제 내용을 분석하여 ${subject} 과목의 유사한 연습문제 ${count}개를 ${typeMap[qType]} 만드세요.
+
+반드시 아래 JSON 형식만 출력하세요. 마크다운 블록이나 다른 텍스트 없이 순수 JSON만:
+
+{"questions":[{"type":"mcq","question":"문제","options":["A. 보기1","B. 보기2","C. 보기3","D. 보기4","E. 보기5"],"answer":0,"explanation":"해설"},{"type":"ox","question":"문제","answer":true,"explanation":"해설"},{"type":"fill","question":"___에 들어갈 용어는?","answer":"정답","explanation":"해설"}]}
+
+type은 mcq/ox/fill 중 하나. mcq: options(5개)와 answer(0~4 인덱스). ox: answer(true/false). fill: answer(문자열).`;
+
+    try {
+      const resp = await fetch('/api/generate', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ pdf: pdf64, prompt })
+      });
+      const data = await resp.json();
+      if (data.error) throw new Error(data.error);
+      const clean = data.text.replace(/```json|```/g,'').trim();
+      quizList = JSON.parse(clean).questions;
+      cur = 0; scores = new Array(quizList.length).fill(null);
+      renderQ();
+    } catch(e) {
+      document.getElementById('q-card').innerHTML = `<div style="padding:2rem;text-align:center;color:var(--red-600);font-size:14px">문제 생성 중 오류가 발생했습니다.<br><small>${e.message}</small></div>`;
+    }
+  }
+
+  function renderQ() {
+    answered = false; selMCQ = null; selOX = null;
+    const q = quizList[cur], n = quizList.length;
+    document.getElementById('q-num').textContent = `문제 ${cur+1} / ${n}`;
+    document.getElementById('prog').style.width = ((cur+1)/n*100)+'%';
+    const bmap = {mcq:['객관식','badge-mcq'], ox:['OX 문제','badge-ox'], fill:['빈칸채우기','badge-fill']};
+    const [bl, bc] = bmap[q.type]||['문제','badge-mcq'];
+    const badge = document.getElementById('q-badge');
+    badge.textContent = bl; badge.className = 'badge '+bc;
+
+    let body = `<div class="q-text">${cur+1}. ${q.question}</div>`;
+
+    if (q.type==='mcq') {
+      body += `<div class="options">`+q.options.map((o,i)=>`<div class="option" data-i="${i}" onclick="pickMCQ(this,${i})"><span class="opt-key">${'ABCDE'[i]}</span>${o.replace(/^[A-E]\.\s*/,'')}</div>`).join('')+`</div>`;
+    } else if (q.type==='ox') {
+      body += `<div class="ox-row"><div class="ox-btn" data-v="true" onclick="pickOX(this,true)">O</div><div class="ox-btn" data-v="false" onclick="pickOX(this,false)">X</div></div>`;
+    } else {
+      body += `<input class="fill-input" id="fill-inp" type="text" placeholder="정답을 입력하고 Enter" onkeydown="if(event.key==='Enter')checkAns()">`;
+    }
+    body += `<div class="explanation" id="expl"><strong>해설</strong>${q.explanation}</div>`;
+    document.getElementById('q-card').innerHTML = body;
+    document.getElementById('btn-check').style.display = '';
+    document.getElementById('btn-next').style.display  = 'none';
+  }
+
+  function pickMCQ(el,i){ if(answered)return; document.querySelectorAll('.option').forEach(o=>o.classList.remove('picked')); el.classList.add('picked'); selMCQ=i; }
+  function pickOX(el,v){ if(answered)return; document.querySelectorAll('.ox-btn').forEach(o=>o.classList.remove('picked')); el.classList.add('picked'); selOX=v; }
+
+  function checkAns(){
+    if(answered) return;
+    const q = quizList[cur];
+    if(q.type==='mcq'&&selMCQ===null) return;
+    if(q.type==='ox'&&selOX===null) return;
+    if(q.type==='fill'&&!document.getElementById('fill-inp').value.trim()) return;
+    answered=true;
+
+    if(q.type==='mcq'){
+      document.querySelectorAll('.option').forEach((o,i)=>{
+        o.classList.add('locked');
+        if(i===q.answer) o.classList.add('correct');
+        else if(i===selMCQ) o.classList.add('wrong');
+      });
+      scores[cur] = selMCQ===q.answer;
+    } else if(q.type==='ox'){
+      const ans = q.answer===true||q.answer==='true';
+      document.querySelectorAll('.ox-btn').forEach(o=>{
+        const v=o.dataset.v==='true'; o.classList.add('locked');
+        if(v===ans) o.classList.add('correct');
+        else if(v===selOX) o.classList.add('wrong');
+      });
+      scores[cur] = selOX===ans;
+    } else {
+      const inp=document.getElementById('fill-inp');
+      const ua=inp.value.trim();
+      const ok=ua.replace(/\s/g,'').toLowerCase()===String(q.answer).replace(/\s/g,'').toLowerCase();
+      inp.classList.add(ok?'correct':'wrong'); inp.disabled=true;
+      if(!ok){ const d=document.createElement('div'); d.className='answer-reveal'; d.textContent='정답: '+q.answer; inp.after(d); }
+      scores[cur]=ok;
+    }
+    document.getElementById('expl').classList.add('show');
+    document.getElementById('btn-check').style.display='none';
+    document.getElementById('btn-next').style.display='';
+    document.getElementById('btn-next').textContent = cur<quizList.length-1 ? '다음 →' : '결과 보기';
+  }
+
+  function nextQ(){
+    if(cur<quizList.length-1){ cur++; renderQ(); }
+    else showResult();
+  }
+
+  function showResult(){
+    goTab('result');
+    document.getElementById('tab-result').disabled=false;
+    const correct=scores.filter(s=>s===true).length;
+    const wrong=scores.filter(s=>s===false).length;
+    const total=quizList.length;
+    const pct=Math.round(correct/total*100);
+    const grades=[[90,'🎉 우수','#1D9E75'],[70,'👍 양호','#378ADD'],[50,'📚 보통','#BA7517'],[0,'💪 분발 필요','#E24B4A']];
+    const [,gl,gc]=grades.find(([t])=>pct>=t)||grades[grades.length-1];
+    document.getElementById('result-hero').innerHTML=`
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:8px">최종 점수</div>
+      <div class="result-score" style="color:${gc}">${pct}<span style="font-size:28px">%</span></div>
+      <div class="result-grade">${gl}</div>
+      <div class="result-bar-wrap"><div class="result-bar" id="rbar" style="width:0%;background:${gc}"></div></div>
+      <div class="stat-row">
+        <div class="stat-item"><div class="stat-n c-correct">${correct}</div><div class="stat-l">정답</div></div>
+        <div class="stat-item"><div class="stat-n c-wrong">${wrong}</div><div class="stat-l">오답</div></div>
+        <div class="stat-item"><div class="stat-n">${total}</div><div class="stat-l">전체</div></div>
+      </div>`;
+    setTimeout(()=>document.getElementById('rbar').style.width=pct+'%',100);
+    document.getElementById('retry-btn').style.display='';
+  }
+</script>
+</body>
+</html>
