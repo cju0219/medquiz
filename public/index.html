@@ -488,12 +488,15 @@ type은 mcq/ox/fill 중 하나. mcq: options(5개)와 answer(0~4 인덱스). ox:
     }
     document.getElementById('expl').classList.add('show');
     document.getElementById('btn-check').style.display='none';
-    document.getElementById('btn-next').style.display='';
-    document.getElementById('btn-next').textContent = cur<quizList.length-1 ? '다음 →' : '결과 보기';
+
+    const btnNext = document.getElementById('btn-next');
+    btnNext.style.display='inline-block';
+    btnNext.textContent = cur < quizList.length-1 ? '다음 →' : '결과 보기';
+    btnNext.onclick = function(){ nextQ(); };
   }
 
   function nextQ(){
-    if(cur<quizList.length-1){ cur++; renderQ(); }
+    if(cur < quizList.length-1){ cur++; renderQ(); }
     else showResult();
   }
 
