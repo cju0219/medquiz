@@ -6,6 +6,7 @@
   <title>MedQuiz — 의대생 연습문제 생성기</title>
   <meta name="description" content="기출 문제 PDF를 업로드하면 AI가 유사한 연습문제를 자동으로 생성합니다" />
   <link rel="manifest" href="/manifest.json" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600&family=Pretendard:wght@400;500;600&display=swap" rel="stylesheet" />
   <style>
@@ -359,7 +360,10 @@
 <footer>MedQuiz · AI 기반 의대 연습문제 생성기</footer>
 
 <script>
-  let pdf64 = null, quizList = [], cur = 0, answered = false, scores = [], qType = 'mixed', selMCQ = null, selOX = null;
+  // PDF.js 워커 설정
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+  let pdfText = null, quizList = [], cur = 0, answered = false, scores = [], qType = 'mixed', selMCQ = null, selOX = null;
 
   function goTab(id) {
     ['setup','quiz','result'].forEach(t => {
@@ -369,17 +373,30 @@
     });
   }
 
-  function handleFile(inp) {
+  async function handleFile(inp) {
     const f = inp.files[0]; if(!f) return;
-    const r = new FileReader();
-    r.onload = e => {
-      pdf64 = e.target.result.split(',')[1];
-      document.getElementById('file-name-text').textContent = f.name;
-      document.getElementById('file-tag').style.display = 'inline-flex';
+
+    // 업로드 중 UI 표시
+    document.getElementById('file-name-text').textContent = '텍스트 추출 중...';
+    document.getElementById('file-tag').style.display = 'inline-flex';
+
+    try {
+      const arrayBuffer = await f.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let text = '';
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        text += content.items.map(item => item.str).join(' ') + '\n';
+      }
+      // 너무 길면 앞 8000자만 사용 (토큰 절약)
+      pdfText = text.slice(0, 8000);
+      document.getElementById('file-name-text').textContent = f.name + ` (${pdf.numPages}페이지)`;
       document.getElementById('upload-zone').classList.add('has-file');
       checkReady();
-    };
-    r.readAsDataURL(f);
+    } catch(e) {
+      document.getElementById('file-name-text').textContent = '오류: PDF를 읽을 수 없습니다';
+    }
   }
 
   function pickType(el) {
@@ -388,7 +405,7 @@
   }
 
   function checkReady() {
-    const ok = pdf64 && document.getElementById('subject').value;
+    const ok = pdfText && document.getElementById('subject').value;
     document.getElementById('gen-btn').disabled = !ok;
   }
 
@@ -403,7 +420,11 @@
     document.getElementById('btn-check').style.display = 'none';
     document.getElementById('btn-next').style.display  = 'none';
 
-    const prompt = `당신은 의대 교수입니다. 업로드된 PDF의 기출 문제 내용을 분석하여 ${subject} 과목의 유사한 연습문제 ${count}개를 ${typeMap[qType]} 만드세요.
+    const prompt = `당신은 의대 교수입니다. 아래는 기출 문제 PDF에서 추출한 텍스트입니다. 이 내용을 분석하여 ${subject} 과목의 유사한 연습문제 ${count}개를 ${typeMap[qType]} 만드세요.
+
+=== 기출 문제 텍스트 ===
+${pdfText}
+=== 끝 ===
 
 반드시 아래 JSON 형식만 출력하세요. 마크다운 블록이나 다른 텍스트 없이 순수 JSON만:
 
@@ -414,7 +435,7 @@ type은 mcq/ox/fill 중 하나. mcq: options(5개)와 answer(0~4 인덱스). ox:
     try {
       const resp = await fetch('/api/generate', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ pdf: pdf64, prompt })
+        body: JSON.stringify({ text: pdfText, prompt })
       });
       const data = await resp.json();
       if (data.error) throw new Error(data.error);
